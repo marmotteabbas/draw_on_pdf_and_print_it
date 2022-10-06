@@ -5,12 +5,135 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport"
           content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
-    <title>Canvas2PDF Demo</title>
     <script src="lib/pdfkit.js"></script>
     <script src="lib/blob-stream.js"></script>
     <script src="canvas2pdf.js"></script>
 	 <script type="text/JavaScript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js?ver=1.4.2"></script>
 		<script type="text/javascript">
+                    
+                 var arrow_coords = [];
+                 var current_images_version =  new Array();
+                 var route_index = -1;
+                 
+                 function Norm(xA,yA,xB,yB) {
+                    return Math.sqrt(Math.pow(xB-xA,2)+Math.pow(yB-yA,2));
+                 } 
+                 
+                 function Vecteur (xA,yA,xB,yB,ArrowLength,ArrowWidth) { 
+                    var ctx = document.getElementById('myCanvas').getContext('2d');
+                    if (ArrowLength === undefined) {ArrowLength=10;} 
+                    if (ArrowWidth === undefined) {ArrowWidth=8;} 
+                    ctx.lineCap="round"; 
+                  // Calculs des coordonnées des points C, D et E 
+                    AB=Norm(xA,yA,xB,yB); 
+                    xC=xB+ArrowLength*(xA-xB)/AB;yC=yB+ArrowLength*(yA-yB)/AB; 
+                    xD=xC+ArrowWidth*(-(yB-yA))/AB;yD=yC+ArrowWidth*((xB-xA))/AB; 
+                    xE=xC-ArrowWidth*(-(yB-yA))/AB;yE=yC-ArrowWidth*((xB-xA))/AB; 
+                    // et on trace le segment [AB], et sa flèche: 
+                    ctx.beginPath(); 
+                    ctx.moveTo(xA,yA);ctx.lineTo(xB,yB); 
+                    ctx.moveTo(xD,yD);ctx.lineTo(xB,yB);ctx.lineTo(xE,yE); 
+                    ctx.stroke(); 
+                } 
+
+                function addInput(x, y) {
+
+                    if ($('#text_adder').length > 0) {
+                        $('#text_adder').remove();
+                    }
+
+                    var input = document.createElement('input');
+                    input.setAttribute("id", "text_adder");
+                    
+                    input.type = 'text';
+                    input.style.position = 'fixed';
+                    input.style.left = (x - 4) + 'px';
+                    input.style.top = (y - 4) + 'px';
+
+                    input.onkeydown = handleEnter;
+                    
+                    window.setTimeout(function () { 
+                        $('#text_adder').focus();
+                    }, 0); 
+                    
+                    document.body.appendChild(input);
+                    hasInput = true;
+
+
+                }
+                
+                //Key handler for input box:
+                function handleEnter(e) {
+                    var keyCode = e.keyCode;
+                    if (keyCode === 13) {
+                        var pos = $("#text_adder").position();
+
+                        var ctx = document.getElementById('myCanvas').getContext('2d');
+                        
+                        ctx.font = '25px serif';
+                        ctx.fillStyle = "#ff0000"; //<======= here
+                        ctx.fillText($("#text_adder").val(), pos.left, pos.top-100);
+                        $("#text_adder").remove();
+                       /* document.body.removeChild(this);
+                        hasInput = false;*/
+                        
+                        if (drawingMode == 1) {
+                            saveCurrentDrawing();
+                        }
+                    }
+                }
+                
+                function ctrl_z() {
+                    route_index = route_index - 1;
+                    draw_last_image();
+                    
+                }
+                
+                function ctrl_y() {
+                    route_index = route_index + 1;
+                    draw_last_image();
+                }
+                
+                function draw_last_image() {
+                    //garde fou
+                   if(current_images_version.length + route_index < 0) {
+                       route_index = - current_images_version.length;
+                       initPDFRenderer();
+                   } else {
+                        const ctx = document.getElementById('myCanvas').getContext('2d');
+                        ctx.drawImage(current_images_version[current_images_version.length+route_index],0,0);  
+                   } 
+                   
+                  
+                }
+                
+                function saveCurrentDrawing() {
+                    // var text = editor.getValue();
+                    var stream = blobStream();
+                    var ctx = new canvas2pdf.PdfContext(stream);
+                    //  eval(text);
+
+                     var image = new Image();
+                     image.crossOrigin = 'Anonymous';
+                     var canvas = document.getElementById("myCanvas");
+
+                     image.src = canvas.toDataURL("image/png");
+                     image.onload = function () {
+                             ctx.drawImage(image,0,0,600,800);
+                             ctx.end();
+                             current_images_version.push(image);
+                     };
+                }
+
+                //Draw the text onto canvas:
+            /*    function drawText(txt, x, y) {
+                    var myCanvas = document.getElementById("myCanvas");
+                    var ctx = myCanvas.getContext("2d");
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.font = font;
+                    ctx.fillText(txt, x - 4, y - 4);
+                }*/
 	    
         window.onload = function() {
                 var myCanvas = document.getElementById("myCanvas");
@@ -20,14 +143,26 @@
                         var ctx = myCanvas.getContext("2d");
                         var canvasX, canvasY;
                         ctx.lineWidth = 5;
-                         
+                        ctx.strokeStyle="red"; 
+                        
                         $(myCanvas)
                         .mousedown(function(e){
+                            if (drawingMode == 0) { // Mode dessin
                                 isDown = true;
                                 ctx.beginPath();
                                 canvasX = e.pageX - myCanvas.offsetLeft;
                                 canvasY = e.pageY - myCanvas.offsetTop;
                                 ctx.moveTo(canvasX, canvasY);
+                            } else if(drawingMode == 1) {   // Mode texte
+                                addInput(e.pageX, e.pageY);
+                            }else if(drawingMode == 2){
+                                arrow_coords.push([e.pageX-10,e.pageY-100]);
+                                if (arrow_coords.length == 2) {
+                                    Vecteur(arrow_coords[0][0],arrow_coords[0][1],arrow_coords[1][0],arrow_coords[1][1]); 
+                                    arrow_coords= [];
+                                    saveCurrentDrawing();
+                                }
+                            }     
                         })
                         .mousemove(function(e){
                                 if(isDown != false) {
@@ -41,6 +176,9 @@
                         .mouseup(function(e){
                                 isDown = false;
                                 ctx.closePath();
+                                if (drawingMode == 0) {
+                                    saveCurrentDrawing();
+                                }
                         });
                 }
                  
@@ -64,17 +202,34 @@
 	.CodeMirror, .cm-s-default {
 		display: none;
 	}
+       
+        
+         .icons_recover {
+            cursor:pointer
+        }
+        
+         .icons_recover:hover {
+            width:35px;
+        }
+        .icons {
+            width:50px;
+            cursor:pointer;
+        }
+        
+        .icons:hover {
+            width:60px;
+        }
 	</style>
 </head>
 <body>
-<h1>Canvas2PDF Demo</h1>
 <div>
-    <label>Load Example: </label>
-<select id="example_picker">
-    <option value="editor_source">Clock</option>
-    <option value="image_example">Image</option>
-</select>
-</div>
+    <img src="./icon/crayon.png" class='icons' id="crayon_icon">
+    <img src="./icon/text.png" class='icons' id="text_icon">
+    <img src="./icon/fleche.png" class='icons' id="fleche_icon">
+    <img src="./icon/undo-icon.png" class='icons_recover' id="fleche_undo" onclick="ctrl_z();">
+    <img src="./icon/redo-icon.png" class='icons_recover' id="fleche_redo" onclick="ctrl_y();">
+</div> 
+
 <br />
 
 <canvas id="myCanvas" width="1320" height="1700">
@@ -83,19 +238,6 @@
 <br />
 <button onclick="createPdf()">create le pdf</button>
 <br />
-<textarea id="editor_source">
-var image = new Image();
-image.crossOrigin = 'Anonymous';
-var canvas = document.getElementById("myCanvas");
-
-image.src = canvas.toDataURL("image/png");
-image.onload = function () {
-    ctx.drawImage(image, 0, 0);
-    ctx.end();
-};
-
-</textarea>
-
 <textarea id="image_example" style="display:none;">
 var image = new Image();
 image.crossOrigin = 'Anonymous';
@@ -115,14 +257,6 @@ image.onload = function () {
 <script src="lib/codemirror.js"></script>
 <link rel="stylesheet" href="lib/codemirror.css">
 <script type="text/javascript">
-  var examplePicker = document.getElementById('example_picker');
-  examplePicker.onchange = function () {
-   editor.setValue(document.getElementById(examplePicker.value).value)
-  };
-  var editor = CodeMirror.fromTextArea(document.getElementById('editor_source'), {
-    lineNumbers: true,
-  });
-  editor.setSize(600, 775);
   var iframe = document.querySelector('iframe');
   var createPdf = function () {
    // var text = editor.getValue();
@@ -160,6 +294,7 @@ image.onload = function () {
 		let canvasContext;
 		let totalPages;
 		let currentPageNum = 1;
+                let drawingMode = -1; 
 
 		// events
 		window.addEventListener('load', function () {
@@ -168,18 +303,55 @@ image.onload = function () {
 			canvas = document.getElementById('myCanvas');
 			canvasContext = canvas.getContext('2d');
 			
-		//initEvents();
+		        initEvents();
 			initPDFRenderer();
 		});
 
-		function initEvents() {
+		function initEvents() {/*
 			let prevPageBtn = document.getElementById('prev_page');
 			let nextPageBtn = document.getElementById('next_page');
 			let goToPage = document.getElementById('go_to_page');
 			prevPageBtn.addEventListener('click', renderPreviousPage);
 			nextPageBtn.addEventListener('click',renderNextPage);
-			goToPage.addEventListener('click', goToPageNum);
+			goToPage.addEventListener('click', goToPageNum);*/
+                        
+                        //customs events
+                        let crayon_icon = document.getElementById('crayon_icon');
+                        let text_icon = document.getElementById('text_icon');
+                        let fleche_icon = document.getElementById('fleche_icon');
+                        
+                        crayon_icon.addEventListener('click', changeDrawingModeCrayon);
+                        text_icon.addEventListener('click', changeDrawingModeTexte);
+                        fleche_icon.addEventListener('click', changeDrawingModeFleche);
 		}
+                
+                function changeDrawingModeCrayon() {
+                    document.getElementById("text_icon").style.width = "50px";
+                    document.getElementById("fleche_icon").style.width = "50px";
+                    
+                    let crayon_icon = document.getElementById('crayon_icon');
+                    crayon_icon.style.width = "60px";
+                    drawingMode = 0;
+                }
+                
+                function changeDrawingModeTexte() {
+                    document.getElementById("crayon_icon").style.width = "50px";
+                    document.getElementById("fleche_icon").style.width = "50px";
+                    
+                    let text_icon = document.getElementById('text_icon');
+                    text_icon.style.width = "60px";
+                    drawingMode = 1;
+                    
+                }
+                
+                function changeDrawingModeFleche() {
+                    document.getElementById("crayon_icon").style.width = "50px";
+                    document.getElementById("text_icon").style.width = "50px";
+                    
+                    let fleche_icon = document.getElementById('fleche_icon');
+                    fleche_icon.style.width = "60px";
+                    drawingMode = 2;
+                }
 
 		// init when window is loaded
 		function initPDFRenderer() {
