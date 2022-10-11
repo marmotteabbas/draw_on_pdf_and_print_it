@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport"
+          content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="lib/pdfkit.js"></script>
+    <script src="lib/blob-stream.js"></script>
+    <script src="canvas2pdf.js"></script>
+	 <script type="text/JavaScript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js?ver=1.4.2"></script>
+		<script type="text/javascript">
+                    
+                 var arrow_coords = [];
+                 var current_images_version =  new Array();
+                 var route_index = -1;
+                 var global_strokeStyle = "black";
+                 function Norm(xA,yA,xB,yB) {
+                    return Math.sqrt(Math.pow(xB-xA,2)+Math.pow(yB-yA,2));
+                 } 
+                 
+                 function Vecteur (xA,yA,xB,yB,ArrowLength,ArrowWidth) { 
+                    var ctx = document.getElementById('myCanvas').getContext('2d');
+                    if (ArrowLength === undefined) {ArrowLength=10;} 
+                    if (ArrowWidth === undefined) {ArrowWidth=8;} 
+                    ctx.lineCap="round"; 
+                  // Calculs des coordonnées des points C, D et E 
+                    AB=Norm(xA,yA,xB,yB); 
+                    xC=xB+ArrowLength*(xA-xB)/AB;yC=yB+ArrowLength*(yA-yB)/AB; 
+                    xD=xC+ArrowWidth*(-(yB-yA))/AB;yD=yC+ArrowWidth*((xB-xA))/AB; 
+                    xE=xC-ArrowWidth*(-(yB-yA))/AB;yE=yC-ArrowWidth*((xB-xA))/AB; 
+                    // et on trace le segment [AB], et sa flèche: 
+                    ctx.beginPath(); 
+                    ctx.moveTo(xA,yA);ctx.lineTo(xB,yB); 
+                    ctx.moveTo(xD,yD);ctx.lineTo(xB,yB);ctx.lineTo(xE,yE); 
+                    ctx.stroke(); 
+                } 
+
+                function addInput(x, y) {
+
+                    if ($('#text_adder').length > 0) {
+                        $('#text_adder').remove();
+                    }
+
+                    var input = document.createElement('input');
+                    input.setAttribute("id", "text_adder");
+                    
+                    input.type = 'text';
+                    input.style.position = 'absolute';
+                //    input.style.z-index = '89';
+                    input.style.left = (x) + 'px';
+                    input.style.top = (y-8) + 'px';
+
+                    input.onkeydown = handleEnter;
+                    
+                    window.setTimeout(function () { 
+                        $('#text_adder').focus();
+                    }, 0); 
+                    
+                    document.body.appendChild(input);
+                    hasInput = true;
+
+
+                }
+                
+                //Key handler for input box:
+                function handleEnter(e) {
+                    var keyCode = e.keyCode;
+                    if (keyCode === 13) {
+                        var pos = $("#text_adder").position();
+
+                        var ctx = document.getElementById('myCanvas').getContext('2d');
+                        
+                        ctx.font = '25px serif';
+                        ctx.fillStyle = global_strokeStyle; //<======= here
+                        ctx.fillText($("#text_adder").val(), pos.left-10, pos.top-75);
+                        $("#text_adder").remove();
+                       /* document.body.removeChild(this);
+                        hasInput = false;*/
+                        
+                        if (drawingMode == 1) {
+                            saveCurrentDrawing();
+                        }
+                    }
+                }
+                
+                function ctrl_z() {
+                    route_index = route_index - 1;
+                    draw_last_image();
+                    
+                }
+                
+                function ctrl_y() {
+                    route_index = route_index + 1;
+                    draw_last_image();
+                }
+                
+                function change_color(color) {
+                    console.log(color);
+                    $(".colors").each(function( index ) {
+                            $( this ).css( "width", "50px" );
+                            $( this ).css( "height", "50px" );
+                    });
+                    
+                    $("#"+color).css( "width", "60px" );
+                    $("#"+color).css( "height", "60px" );
+                    $("#"+color).css( "border-radius", "32px" );
+                    
+                    if (color=="black") {
+                        global_strokeStyle = "rgb(0,0,0)";
+                    }
+                    
+                    if (color=="white") {
+                        global_strokeStyle = "rgb(255,255,255)";
+                    }
+                    
+                    if (color=="red") {
+                        global_strokeStyle = "rgb(255,0,0)";
+                    }
+                    
+                    if (color=="green") {
+                        global_strokeStyle = "rgb(0,255,0)";    
+                    }
+                    
+                    if (color=="blue") {
+                        global_strokeStyle = "rgb(0,0,255)"; 
+                    }
+                    
+                    if (color=="orange") {
+                        global_strokeStyle = "rgb(255,129,53)"; 
+                    }
+                    
+                }
+                
+                function draw_last_image() {
+                    //garde fou
+                   if(current_images_version.length + route_index < 0) {
+                       route_index = - current_images_version.length-1;
+                       initPDFRenderer();
+                   } else {
+                        const ctx = document.getElementById('myCanvas').getContext('2d');
+                        
+                        if (current_images_version.length+route_index < current_images_version.length) {
+                            ctx.drawImage(current_images_version[current_images_version.length+route_index],0,0);  
+                        } else {
+                            route_index = route_index - 1;
+                            console.log("hors rang possible");
+                        }
+                   } 
+                   
+                  
+                }
+                
+                function saveCurrentDrawing() {
+                    if ((current_images_version.length+route_index) == -1) {
+                        current_images_version = new Array();
+                    }
+                    // var text = editor.getValue();
+                    var stream = blobStream();
+                    var ctx = new canvas2pdf.PdfContext(stream);
+                    //  eval(text);
+
+                     var image = new Image();
+                     image.crossOrigin = 'Anonymous';
+                     var canvas = document.getElementById("myCanvas");
+
+                     image.src = canvas.toDataURL("image/png");
+                     image.onload = function () {
+                             ctx.drawImage(image,0,0,600,800);
+                             ctx.end();
+                             if (current_images_version.length+route_index == (current_images_version.length - 1)) {
+                                 current_images_version.push(image);
+                             } else {
+                                 current_images_version.splice(current_images_version.length+route_index+1, current_images_version.length-1);
+                                 current_images_version.push(image);
+                                 route_index = -1;
+                             }
+                             
+                     };
+                }
+
+                //Draw the text onto canvas:
+            /*    function drawText(txt, x, y) {
+                    var myCanvas = document.getElementById("myCanvas");
+                    var ctx = myCanvas.getContext("2d");
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.font = font;
+                    ctx.fillText(txt, x - 4, y - 4);
+                }*/
+	    
+        window.onload = function() {
+                var myCanvas = document.getElementById("myCanvas");
+                var curColor = $('#selectColor option:selected').val();
+                if(myCanvas){
+                        var isDown  = false;
+                        var ctx = myCanvas.getContext("2d");
+                        var canvasX, canvasY;
+                        ctx.lineWidth = 5;
+                        
+                        
+                        $(myCanvas)
+                        .mousedown(function(e){
+                            ctx.strokeStyle = global_strokeStyle; 
+                            if (drawingMode == 0) { // Mode dessin
+                                isDown = true;
+                                ctx.beginPath();
+                                canvasX = e.pageX - myCanvas.offsetLeft;
+                                canvasY = e.pageY - myCanvas.offsetTop;
+                                ctx.moveTo(canvasX, canvasY);
+                            } else if(drawingMode == 1) {   // Mode texte
+                                addInput(e.pageX, e.pageY);
+                            }else if(drawingMode == 2){
+                                arrow_coords.push([e.pageX-10,e.pageY-100]);
+                                if (arrow_coords.length == 2) {
+                                    Vecteur(arrow_coords[0][0],arrow_coords[0][1],arrow_coords[1][0],arrow_coords[1][1]); 
+                                    arrow_coords= [];
+                                    saveCurrentDrawing();
+                                }
+                            }     
+                        })
+                        .mousemove(function(e){
+                                if(isDown != false) {
+                                    canvasX = e.pageX - myCanvas.offsetLeft;
+                                    canvasY = e.pageY - myCanvas.offsetTop;
+                                    ctx.lineTo(canvasX, canvasY);
+                                    ctx.strokeStyle = curColor;
+                                    ctx.stroke();
+                                }
+                        })
+                        .mouseup(function(e){
+                                isDown = false;
+                                ctx.closePath();
+                                if (drawingMode == 0) {
+                                    saveCurrentDrawing();
+                                }
+                        });
+                }
+                 
+                $('#selectColor').change(function () {
+                        curColor = $('#selectColor option:selected').val();
+                });
+                 
+            };
+        </script>
+    <style>.CodeMirror {
+        border: 1px solid black;
+        margin-right: 20px;
+        display: inline-block;
+        vertical-align: top;
+    }
+	
+	#myCanvas {
+		border: 3px dotted #000;   
+	}
+	
+	.CodeMirror, .cm-s-default {
+		display: none;
+	}
+       
+        
+         .icons_recover {
+            cursor:pointer
+        }
+        
+         .icons_recover:hover {
+            width:35px;
+        }
+        .icons {
+            width:50px;
+            cursor:pointer;
+        }
+        
+        .icons:hover {
+            width:65px;
+        }
+        
+        .colors {
+            cursor: pointer;
+            width:50px;
+            height: 50px;
+            display: inline-block;
+            border-radius: 28px;
+        }
+        
+        .colors:hover {
+            width:60px !important;
+            height: 60px !important;
+            border-radius: 32px;
+        }
+	</style>
+</head>
+<body>
+<div>
+    <div id="black" class="colors" style="background-color: rgb(0,0,0); " onclick="change_color('black')"></div>
+    <div id="white" class="colors" style="background-color: rgb(255,255,255);border: 1px solid;" onclick="change_color('white')"></div>
+    <div id="red" class="colors" style="background-color: rgb(255,0,0); " onclick="change_color('red')"></div>
+    <div id="green" class="colors" style="background-color: rgb(0,255,0); " onclick="change_color('green')"></div>
+    <div id="blue" class="colors" style="background-color: rgb(0,0,255);"  onclick="change_color('blue')"></div>
+    <div id="orange" class="colors" style="background-color: rgb(255,129,53); " onclick="change_color('orange')"></div>
+    <img src="./icon/crayon.png" class='icons' id="crayon_icon">
+    <img src="./icon/text.png" class='icons' id="text_icon">
+    <img src="./icon/fleche.png" class='icons' id="fleche_icon">
+    <img src="./icon/undo-icon.png" class='icons_recover' id="fleche_undo" onclick="ctrl_z();">
+    <img src="./icon/redo-icon.png" class='icons_recover' id="fleche_redo" onclick="ctrl_y();">
+    
+</div> 
+
+<br />
+
+<canvas id="myCanvas" width="1320" height="1700">
+            Sorry, your browser doesn't support canvas technology.
+        </canvas>
+<br />
+<button onclick="createPdf()">create le pdf</button>
+<br />
+<textarea id="image_example" style="display:none;">
+var image = new Image();
+image.crossOrigin = 'Anonymous';
+image.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Tiger_in_Ranthambhore.jpg/220px-Tiger_in_Ranthambhore.jpg';
+image.onload = function () {
+    ctx.drawImage(image, 0, 0);
+    ctx.end();
+};
+</textarea>
+
+<span id="current_page_num"></span>
+<span id="total_page_num"></span>
+<div id="loader">Loading ......</div>
+
+<iframe id="cc" style="border:1px solid black;" width="600" height="775">
+</iframe>
+<script src="lib/codemirror.js"></script>
+<link rel="stylesheet" href="lib/codemirror.css">
+<script type="text/javascript">
+  var iframe = document.querySelector('iframe');
+  var createPdf = function () {
+   // var text = editor.getValue();
+    var stream = blobStream();
+    var ctx = new canvas2pdf.PdfContext(stream);
+  //  eval(text);
+  
+	var image = new Image();
+	image.crossOrigin = 'Anonymous';
+	var canvas = document.getElementById("myCanvas");
+
+	image.src = canvas.toDataURL("image/png");
+	image.onload = function () {
+		ctx.drawImage(image,0,0,600,800);
+		ctx.end();
+	};
+
+    ctx.stream.on('finish', function () {
+      iframe.src = ctx.stream.toBlobURL('application/pdf');
+    });
+
+  };
+
+  createPdf();
+  
+
+</script>
+<script>
+		
+		// intial params
+		let pdf ;
+		let canvas;
+		let isPageRendering;
+		let  pageRenderingQueue = null;
+		let canvasContext;
+		let totalPages;
+		let currentPageNum = 1;
+                let drawingMode = -1; 
+
+		// events
+		window.addEventListener('load', function () {
+			isPageRendering= false;
+			pageRenderingQueue = null;
+			canvas = document.getElementById('myCanvas');
+			canvasContext = canvas.getContext('2d');
+			
+		        initEvents();
+			initPDFRenderer();
+		});
+
+		function initEvents() {/*
+			let prevPageBtn = document.getElementById('prev_page');
+			let nextPageBtn = document.getElementById('next_page');
+			let goToPage = document.getElementById('go_to_page');
+			prevPageBtn.addEventListener('click', renderPreviousPage);
+			nextPageBtn.addEventListener('click',renderNextPage);
+			goToPage.addEventListener('click', goToPageNum);*/
+                        
+                        //customs events
+                        let crayon_icon = document.getElementById('crayon_icon');
+                        let text_icon = document.getElementById('text_icon');
+                        let fleche_icon = document.getElementById('fleche_icon');
+                        
+                        crayon_icon.addEventListener('click', changeDrawingModeCrayon);
+                        text_icon.addEventListener('click', changeDrawingModeTexte);
+                        fleche_icon.addEventListener('click', changeDrawingModeFleche);
+		}
+                
+                function changeDrawingModeCrayon() {
+                    document.getElementById("text_icon").style.width = "50px";
+                    document.getElementById("fleche_icon").style.width = "50px";
+                    
+                    let crayon_icon = document.getElementById('crayon_icon');
+                    crayon_icon.style.width = "60px";
+                    drawingMode = 0;
+                }
+                
+                function changeDrawingModeTexte() {
+                    document.getElementById("crayon_icon").style.width = "50px";
+                    document.getElementById("fleche_icon").style.width = "50px";
+                    
+                    let text_icon = document.getElementById('text_icon');
+                    text_icon.style.width = "60px";
+                    drawingMode = 1;
+                    
+                }
+                
+                function changeDrawingModeFleche() {
+                    document.getElementById("crayon_icon").style.width = "50px";
+                    document.getElementById("text_icon").style.width = "50px";
+                    
+                    let fleche_icon = document.getElementById('fleche_icon');
+                    fleche_icon.style.width = "60px";
+                    drawingMode = 2;
+                }
+
+		// init when window is loaded
+		function initPDFRenderer() {
+			
+			var url = 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf';
+
+			// const url = 'test1.pdf'; // replace with your pdf location
+
+			let option  = { url};
+			
+
+			pdfjsLib.getDocument(option).promise.then(pdfData => {
+				totalPages = pdfData.numPages;
+				let pagesCounter= document.getElementById('total_page_num');
+				pagesCounter.textContent = totalPages;
+				// assigning read pdfContent to global variable
+				pdf = pdfData;
+				renderPage(currentPageNum);
+			});
+		}
+
+		function renderPage(pageNumToRender = 1, scale = 1) {
+			isPageRendering = true;
+			document.getElementById('current_page_num').textContent = pageNumToRender;
+			pdf.getPage(pageNumToRender).then(page => {
+				document.getElementById("loader").style.display = "none";
+				/*const viewport = page.getViewport({scale :1});
+				canvas.height = viewport.height;
+				canvas.width = viewport.width; */
+				const viewport = page.getViewport({scale: canvas.width / page.getViewport({scale: 1}).width});				
+				let renderCtx = {canvasContext ,viewport};
+				page.render(renderCtx).promise.then(()=> {
+					isPageRendering = false;
+					if(pageRenderingQueue !== null) { // this is to check of there is next page to be rendered in the queue
+						renderPage(pageNumToRender);
+						pageRenderingQueue = null; 
+					}
+				});        
+			}); 
+		}
+
+		function renderPageQueue(pageNum) {
+			if(pageRenderingQueue != null) {
+				pageRenderingQueue = pageNum;
+			} else {
+				renderPage(pageNum);
+			}
+		}
+
+		function renderNextPage(ev) {
+			if(currentPageNum >= totalPages) {
+				alert("This is the last page");
+				return ;
+			} 
+			currentPageNum++;
+			renderPageQueue(currentPageNum);
+		}
+
+		function renderPreviousPage(ev) {
+			if(currentPageNum<=1) {
+				alert("This is the first page");
+				return ;
+			}
+			currentPageNum--;
+			renderPageQueue(currentPageNum);
+		}
+
+		function goToPageNum(ev) {
+			let numberInput = document.getElementById('page_num');
+			let pageNumber = parseInt(numberInput.value);
+			if(pageNumber) {
+				if(pageNumber <= totalPages && pageNumber >= 1){
+					currentPageNum = pageNumber;
+					numberInput.value ="";
+					renderPageQueue(pageNumber);
+					return ;
+				}
+			}
+				alert("Enter a valide page numer");
+		}
+		</script>
+		
+		 <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+
+
+</body>
+</html>
