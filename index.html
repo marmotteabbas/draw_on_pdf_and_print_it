@@ -20,6 +20,10 @@
                  } 
                  
                  function Vecteur (xA,yA,xB,yB,ArrowLength,ArrowWidth) { 
+                    //compensation
+                    yA = yA + 9;
+                    yB = yB + 9;
+                    //Regular Job
                     var ctx = document.getElementById('myCanvas').getContext('2d');
                     if (ArrowLength === undefined) {ArrowLength=10;} 
                     if (ArrowWidth === undefined) {ArrowWidth=8;} 
@@ -243,7 +247,9 @@
                  
             };
         </script>
-    <style>.CodeMirror {
+    <style>
+    
+    .CodeMirror {
         border: 1px solid black;
         margin-right: 20px;
         display: inline-block;
@@ -252,6 +258,9 @@
 	
 	#myCanvas {
 		border: 3px dotted #000;   
+                margin-top: 63px;
+                position: relative;
+                background-color: white;
 	}
 	
 	.CodeMirror, .cm-s-default {
@@ -288,10 +297,18 @@
             height: 60px !important;
             border-radius: 32px;
         }
+        
+        #tool_bar {
+            border-radius: 30px;
+            position: fixed;
+            z-index: 99999999;
+            background-color: #DCDCDC;
+            padding: 4px;
+        }
 	</style>
 </head>
 <body>
-<div>
+<div id="tool_bar">
     <div id="black" class="colors" style="background-color: rgb(0,0,0); " onclick="change_color('black')"></div>
     <div id="white" class="colors" style="background-color: rgb(255,255,255);border: 1px solid;" onclick="change_color('white')"></div>
     <div id="red" class="colors" style="background-color: rgb(255,0,0); " onclick="change_color('red')"></div>
@@ -357,8 +374,11 @@ image.onload = function () {
   };
 
   createPdf();
+  $( document ).ready(function() {
+    $("#black").click();
+    changeDrawingModeCrayon();
+  });
   
-
 </script>
 <script>
 		
